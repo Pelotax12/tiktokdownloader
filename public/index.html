@@ -3,14 +3,14 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TikTok Downloader - Netlify</title>
+  <title>TikTok Downloader</title>
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-slate-900 text-white min-h-screen flex items-center justify-center p-4">
 
   <div class="max-w-md w-full bg-slate-800 rounded-2xl p-6 shadow-2xl border border-slate-700">
-    <h1 class="text-2xl font-bold text-center mb-2">TikTok Downloader</h1>
-    <p class="text-sm text-slate-400 text-center mb-6">Baixe vídeos sem marca d'água</p>
+    <h1 class="text-2xl font-bold text-center mb-1">TikTok Downloader</h1>
+    <p class="text-xs text-slate-400 text-center mb-6">Baixe vídeos sem marca d'água direto no seu dispositivo</p>
 
     <div class="space-y-4">
       <input 
@@ -40,20 +40,22 @@
           </div>
         </div>
 
-        <a 
+        <button 
           id="btnDownload" 
-          href="#" 
-          target="_blank" 
-          rel="noopener noreferrer"
-          class="block text-center w-full py-3 bg-emerald-600 hover:bg-emerald-500 font-semibold rounded-xl transition duration-200"
+          onclick="triggerDirectDownload()" 
+          class="w-full py-3 bg-emerald-600 hover:bg-emerald-500 font-semibold rounded-xl transition duration-200 flex items-center justify-center space-x-2"
         >
-          ⬇ Baixar Vídeo Sem Marca
-        </a>
+          <span>⬇ Baixar Vídeo Sem Marca</span>
+        </button>
       </div>
     </div>
   </div>
 
   <script>
+    // Variáveis globais para armazenar os dados do vídeo atual
+    let currentVideoUrl = "";
+    let currentVideoTitle = "tiktok_video";
+
     async function fetchVideo() {
       const urlInput = document.getElementById('tiktokUrl').value.trim();
       const status = document.getElementById('status');
@@ -66,24 +68,23 @@
       }
 
       status.className = 'text-center text-sm text-yellow-400 block';
-      status.innerText = 'Buscando vídeo...';
+      status.innerText = 'Buscando dados do vídeo...';
       resultCard.classList.add('hidden');
       btnSearch.disabled = true;
 
       try {
-        // Graças ao netlify.toml, você pode chamar diretamente /api/download
         const response = await fetch(`/api/download?url=${encodeURIComponent(urlInput)}`);
         const data = await response.json();
 
         if (response.ok && data.success) {
           status.classList.add('hidden');
           
+          currentVideoUrl = data.videoUrl;
+          currentVideoTitle = (data.title || 'tiktok_video').replace(/[\\/*?:"<>|]/g, '').slice(0, 30);
+          
           document.getElementById('videoThumb').src = data.cover;
           document.getElementById('videoAuthor').innerText = `@${data.author}`;
           document.getElementById('videoTitle').innerText = data.title;
-          
-          const downloadBtn = document.getElementById('btnDownload');
-          downloadBtn.href = data.videoUrl;
           
           resultCard.classList.remove('hidden');
         } else {
@@ -92,9 +93,51 @@
         }
       } catch (err) {
         status.className = 'text-center text-sm text-rose-400 block';
-        status.innerText = 'Erro de conexão com a função Netlify.';
+        status.innerText = 'Erro de comunicação com o servidor.';
       } finally {
         btnSearch.disabled = false;
+      }
+    }
+
+    // Função que baixa o arquivo diretamente sem trocar de página
+    async function triggerDirectDownload() {
+      const btnDownload = document.getElementById('btnDownload');
+      const originalText = btnDownload.innerHTML;
+
+      if (!currentVideoUrl) return;
+
+      btnDownload.disabled = true;
+      btnDownload.innerHTML = `
+        <svg class="animate-spin h-5 w-5 text-white inline-block" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+        </svg>
+        <span class="ml-2">Baixando arquivo...</span>
+      `;
+
+      try {
+        const response = await fetch(currentVideoUrl);
+        const blob = await response.blob();
+        
+        // Cria um link temporário na memória para iniciar o download
+        const blobUrl = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.style.display = 'none';
+        a.href = blobUrl;
+        a.download = `${currentVideoTitle}.mp4`;
+        
+        document.body.appendChild(a);
+        a.click();
+        
+        // Limpeza de memória
+        window.URL.revokeObjectURL(blobUrl);
+        document.body.removeChild(a);
+      } catch (error) {
+        // Fallback: se houver bloqueio de CORS na mídia, abre o link direto
+        window.open(currentVideoUrl, '_blank');
+      } finally {
+        btnDownload.disabled = false;
+        btnDownload.innerHTML = originalText;
       }
     }
   </script>
