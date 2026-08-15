@@ -1,155 +1,140 @@
-<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Universal Video Downloader</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-</head>
-<body class="bg-slate-900 text-white min-h-screen flex items-center justify-center p-4">
+exports.handler = async function (event, context) {
+  const headers = {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+    "Content-Type": "application/json"
+  };
 
-  <div class="max-w-md w-full bg-slate-800 rounded-2xl p-6 shadow-2xl border border-slate-700">
-    <h1 class="text-2xl font-bold text-center mb-1 bg-gradient-to-r from-pink-500 via-purple-500 to-indigo-500 bg-clip-text text-transparent">
-      Universal Downloader
-    </h1>
-    <p class="text-xs text-slate-400 text-center mb-4">TikTok, Reels, Twitter/X e Shorts sem marca d'água</p>
+  if (event.httpMethod === "OPTIONS") {
+    return { statusCode: 200, headers, body: "" };
+  }
 
-    <!-- Badges de plataformas suportadas -->
-    <div class="flex justify-center space-x-2 mb-6">
-      <span class="text-[10px] bg-slate-700/80 px-2 py-0.5 rounded-full text-slate-300">TikTok</span>
-      <span class="text-[10px] bg-pink-900/40 text-pink-300 border border-pink-700/50 px-2 py-0.5 rounded-full">Instagram</span>
-      <span class="text-[10px] bg-blue-900/40 text-blue-300 border border-blue-700/50 px-2 py-0.5 rounded-full">Twitter / X</span>
-      <span class="text-[10px] bg-red-900/40 text-red-300 border border-red-700/50 px-2 py-0.5 rounded-full">YouTube</span>
-    </div>
+  const rawUrl = event.queryStringParameters?.url;
+  if (!rawUrl) {
+    return {
+      statusCode: 400,
+      headers,
+      body: JSON.stringify({ error: "Por favor, informe a URL do vídeo." })
+    };
+  }
 
-    <div class="space-y-4">
-      <input 
-        type="url" 
-        id="videoUrlInput" 
-        placeholder="Cole o link do vídeo aqui..." 
-        class="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-xl focus:outline-none focus:border-indigo-500 text-sm text-white"
-      />
+  const cleanUrl = rawUrl.trim();
 
-      <button 
-        id="btnSearch" 
-        onclick="fetchVideo()" 
-        class="w-full py-3 bg-indigo-600 hover:bg-indigo-500 font-semibold rounded-xl transition duration-200"
-      >
-        Buscar Vídeo
-      </button>
+  try {
+    // 1. TIKTOK
+    if (cleanUrl.includes("tiktok.com")) {
+      const res = await fetch(`https://www.tikwm.com/api/?url=${encodeURIComponent(cleanUrl)}&hd=1`);
+      const data = await res.json();
 
-      <div id="status" class="text-center text-sm hidden"></div>
-
-      <!-- Card com o resultado -->
-      <div id="resultCard" class="hidden mt-6 pt-4 border-t border-slate-700 space-y-4">
-        <div class="flex items-center space-x-3">
-          <img id="videoThumb" class="w-16 h-16 rounded-lg object-cover bg-slate-700" src="" alt="Thumbnail" />
-          <div class="overflow-hidden">
-            <div class="flex items-center space-x-2">
-              <span id="platformBadge" class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-600"></span>
-              <p id="videoAuthor" class="text-xs text-indigo-300 truncate"></p>
-            </div>
-            <p id="videoTitle" class="text-sm truncate text-slate-200 mt-1"></p>
-          </div>
-        </div>
-
-        <button 
-          id="btnDownload" 
-          onclick="triggerDirectDownload()" 
-          class="w-full py-3 bg-emerald-600 hover:bg-emerald-500 font-semibold rounded-xl transition duration-200 flex items-center justify-center space-x-2"
-        >
-          <span>⬇ Baixar Vídeo</span>
-        </button>
-      </div>
-    </div>
-  </div>
-
-  <script>
-    let currentVideoUrl = "";
-    let currentVideoTitle = "video";
-
-    async function fetchVideo() {
-      const urlInput = document.getElementById('videoUrlInput').value.trim();
-      const status = document.getElementById('status');
-      const resultCard = document.getElementById('resultCard');
-      const btnSearch = document.getElementById('btnSearch');
-
-      if (!urlInput) {
-        alert('Cole a URL de um vídeo.');
-        return;
-      }
-
-      status.className = 'text-center text-sm text-yellow-400 block';
-      status.innerText = 'Processando vídeo da plataforma...';
-      resultCard.classList.add('hidden');
-      btnSearch.disabled = true;
-
-      try {
-        const response = await fetch(`/api/download?url=${encodeURIComponent(urlInput)}`);
-        const data = await response.json();
-
-        if (response.ok && data.success) {
-          status.classList.add('hidden');
-          
-          currentVideoUrl = data.videoUrl;
-          currentVideoTitle = (data.title || 'video').replace(/[\\/*?:"<>|]/g, '').slice(0, 30);
-          
-          document.getElementById('videoThumb').src = data.cover;
-          document.getElementById('platformBadge').innerText = data.platform || 'Vídeo';
-          document.getElementById('videoAuthor').innerText = data.author ? `@${data.author}` : '';
-          document.getElementById('videoTitle').innerText = data.title;
-          
-          resultCard.classList.remove('hidden');
-        } else {
-          status.className = 'text-center text-sm text-rose-400 block';
-          status.innerText = data.error || 'Não foi possível baixar este vídeo.';
-        }
-      } catch (err) {
-        status.className = 'text-center text-sm text-rose-400 block';
-        status.innerText = 'Erro de comunicação com o servidor.';
-      } finally {
-        btnSearch.disabled = false;
+      if (data.code === 0 && data.data) {
+        return {
+          statusCode: 200,
+          headers,
+          body: JSON.stringify({
+            success: true,
+            platform: "TikTok",
+            title: data.data.title || "tiktok_video",
+            cover: data.data.cover,
+            videoUrl: data.data.play,
+            audioUrl: data.data.music, // Link do áudio/música original em MP3
+            author: data.data.author?.nickname || "TikTok User"
+          })
+        };
       }
     }
 
-    async function triggerDirectDownload() {
-      const btnDownload = document.getElementById('btnDownload');
-      const originalText = btnDownload.innerHTML;
+    // 2. INSTAGRAM (Reels / Posts)
+    else if (cleanUrl.includes("instagram.com")) {
+      const res = await fetch(`https://api.vkrdown.com/api/insta?url=${encodeURIComponent(cleanUrl)}`);
+      const data = await res.json();
 
-      if (!currentVideoUrl) return;
-
-      btnDownload.disabled = true;
-      btnDownload.innerHTML = `
-        <svg class="animate-spin h-5 w-5 text-white inline-block" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
-        </svg>
-        <span class="ml-2">Baixando arquivo...</span>
-      `;
-
-      try {
-        const response = await fetch(currentVideoUrl);
-        const blob = await response.blob();
-        
-        const blobUrl = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.style.display = 'none';
-        a.href = blobUrl;
-        a.download = `${currentVideoTitle}.mp4`;
-        
-        document.body.appendChild(a);
-        a.click();
-        
-        window.URL.revokeObjectURL(blobUrl);
-        document.body.removeChild(a);
-      } catch (error) {
-        // Fallback se a API externa bloquear download por CORS
-        window.open(currentVideoUrl, '_blank');
-      } finally {
-        btnDownload.disabled = false;
-        btnDownload.innerHTML = originalText;
+      if (data.status === "success" && data.data?.[0]) {
+        return {
+          statusCode: 200,
+          headers,
+          body: JSON.stringify({
+            success: true,
+            platform: "Instagram",
+            title: "Instagram Reel",
+            cover: data.data[0].thumbnail,
+            videoUrl: data.data[0].url,
+            audioUrl: data.data[0].url, // Instagram une áudio/vídeo no mesmo container
+            author: "Instagram"
+          })
+        };
       }
     }
-  </script>
-</body>
-</html>
+
+    // 3. TWITTER / X
+    else if (cleanUrl.includes("twitter.com") || cleanUrl.includes("x.com")) {
+      const res = await fetch(`https://api.twitsave.com/info?url=${encodeURIComponent(cleanUrl)}`);
+      const data = await res.json();
+
+      if (data && data.url) {
+        return {
+          statusCode: 200,
+          headers,
+          body: JSON.stringify({
+            success: true,
+            platform: "Twitter / X",
+            title: data.description || "Twitter Video",
+            cover: data.thumbnail,
+            videoUrl: data.url,
+            audioUrl: data.url,
+            author: data.uploader || "Twitter User"
+          })
+        };
+      }
+    }
+
+    // 4. MULTIPLATAFORMA / YOUTUBE (Cobalt API)
+    const cobaltRes = await fetch("https://api.cobalt.tools/api/json", {
+      method: "POST",
+      headers: {
+        "Accept": "application/json",
+        "Content-Type": "application/json",
+        "User-Agent": "UniversalDownloader/1.0"
+      },
+      body: JSON.stringify({
+        url: cleanUrl,
+        vCodec: "h264",
+        vQuality: "720",
+        aFormat: "mp3",
+        isNoTTWatermark: true,
+        isAudioOnly: false
+      })
+    });
+
+    const cobaltData = await cobaltRes.json();
+
+    if (cobaltData.url) {
+      return {
+        statusCode: 200,
+        headers,
+        body: JSON.stringify({
+          success: true,
+          platform: "Mídia",
+          title: "audio_video_download",
+          cover: "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=150&h=150&fit=crop",
+          videoUrl: cobaltData.url,
+          audioUrl: cobaltData.url,
+          author: "Universal Downloader"
+        })
+      };
+    }
+
+    return {
+      statusCode: 422,
+      headers,
+      body: JSON.stringify({ error: "Não foi possível extrair a mídia do link informado." })
+    };
+
+  } catch (error) {
+    return {
+      statusCode: 500,
+      headers,
+      body: JSON.stringify({ error: "Erro ao processar requisição no servidor." })
+    };
+  }
+};
