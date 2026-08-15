@@ -3,20 +3,30 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TikTok Downloader</title>
+  <title>Universal Video Downloader</title>
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-slate-900 text-white min-h-screen flex items-center justify-center p-4">
 
   <div class="max-w-md w-full bg-slate-800 rounded-2xl p-6 shadow-2xl border border-slate-700">
-    <h1 class="text-2xl font-bold text-center mb-1">TikTok Downloader</h1>
-    <p class="text-xs text-slate-400 text-center mb-6">Baixe vídeos sem marca d'água direto no seu dispositivo</p>
+    <h1 class="text-2xl font-bold text-center mb-1 bg-gradient-to-r from-pink-500 via-purple-500 to-indigo-500 bg-clip-text text-transparent">
+      Universal Downloader
+    </h1>
+    <p class="text-xs text-slate-400 text-center mb-4">TikTok, Reels, Twitter/X e Shorts sem marca d'água</p>
+
+    <!-- Badges de plataformas suportadas -->
+    <div class="flex justify-center space-x-2 mb-6">
+      <span class="text-[10px] bg-slate-700/80 px-2 py-0.5 rounded-full text-slate-300">TikTok</span>
+      <span class="text-[10px] bg-pink-900/40 text-pink-300 border border-pink-700/50 px-2 py-0.5 rounded-full">Instagram</span>
+      <span class="text-[10px] bg-blue-900/40 text-blue-300 border border-blue-700/50 px-2 py-0.5 rounded-full">Twitter / X</span>
+      <span class="text-[10px] bg-red-900/40 text-red-300 border border-red-700/50 px-2 py-0.5 rounded-full">YouTube</span>
+    </div>
 
     <div class="space-y-4">
       <input 
         type="url" 
-        id="tiktokUrl" 
-        placeholder="Cole o link do TikTok aqui..." 
+        id="videoUrlInput" 
+        placeholder="Cole o link do vídeo aqui..." 
         class="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-xl focus:outline-none focus:border-indigo-500 text-sm text-white"
       />
 
@@ -35,8 +45,11 @@
         <div class="flex items-center space-x-3">
           <img id="videoThumb" class="w-16 h-16 rounded-lg object-cover bg-slate-700" src="" alt="Thumbnail" />
           <div class="overflow-hidden">
-            <p id="videoAuthor" class="text-xs text-indigo-400 font-semibold"></p>
-            <p id="videoTitle" class="text-sm truncate text-slate-200"></p>
+            <div class="flex items-center space-x-2">
+              <span id="platformBadge" class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-600"></span>
+              <p id="videoAuthor" class="text-xs text-indigo-300 truncate"></p>
+            </div>
+            <p id="videoTitle" class="text-sm truncate text-slate-200 mt-1"></p>
           </div>
         </div>
 
@@ -45,30 +58,29 @@
           onclick="triggerDirectDownload()" 
           class="w-full py-3 bg-emerald-600 hover:bg-emerald-500 font-semibold rounded-xl transition duration-200 flex items-center justify-center space-x-2"
         >
-          <span>⬇ Baixar Vídeo Sem Marca</span>
+          <span>⬇ Baixar Vídeo</span>
         </button>
       </div>
     </div>
   </div>
 
   <script>
-    // Variáveis globais para armazenar os dados do vídeo atual
     let currentVideoUrl = "";
-    let currentVideoTitle = "tiktok_video";
+    let currentVideoTitle = "video";
 
     async function fetchVideo() {
-      const urlInput = document.getElementById('tiktokUrl').value.trim();
+      const urlInput = document.getElementById('videoUrlInput').value.trim();
       const status = document.getElementById('status');
       const resultCard = document.getElementById('resultCard');
       const btnSearch = document.getElementById('btnSearch');
 
       if (!urlInput) {
-        alert('Por favor, insira o link do TikTok.');
+        alert('Cole a URL de um vídeo.');
         return;
       }
 
       status.className = 'text-center text-sm text-yellow-400 block';
-      status.innerText = 'Buscando dados do vídeo...';
+      status.innerText = 'Processando vídeo da plataforma...';
       resultCard.classList.add('hidden');
       btnSearch.disabled = true;
 
@@ -80,16 +92,17 @@
           status.classList.add('hidden');
           
           currentVideoUrl = data.videoUrl;
-          currentVideoTitle = (data.title || 'tiktok_video').replace(/[\\/*?:"<>|]/g, '').slice(0, 30);
+          currentVideoTitle = (data.title || 'video').replace(/[\\/*?:"<>|]/g, '').slice(0, 30);
           
           document.getElementById('videoThumb').src = data.cover;
-          document.getElementById('videoAuthor').innerText = `@${data.author}`;
+          document.getElementById('platformBadge').innerText = data.platform || 'Vídeo';
+          document.getElementById('videoAuthor').innerText = data.author ? `@${data.author}` : '';
           document.getElementById('videoTitle').innerText = data.title;
           
           resultCard.classList.remove('hidden');
         } else {
           status.className = 'text-center text-sm text-rose-400 block';
-          status.innerText = data.error || 'Erro ao processar o vídeo.';
+          status.innerText = data.error || 'Não foi possível baixar este vídeo.';
         }
       } catch (err) {
         status.className = 'text-center text-sm text-rose-400 block';
@@ -99,7 +112,6 @@
       }
     }
 
-    // Função que baixa o arquivo diretamente sem trocar de página
     async function triggerDirectDownload() {
       const btnDownload = document.getElementById('btnDownload');
       const originalText = btnDownload.innerHTML;
@@ -119,7 +131,6 @@
         const response = await fetch(currentVideoUrl);
         const blob = await response.blob();
         
-        // Cria um link temporário na memória para iniciar o download
         const blobUrl = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.style.display = 'none';
@@ -129,11 +140,10 @@
         document.body.appendChild(a);
         a.click();
         
-        // Limpeza de memória
         window.URL.revokeObjectURL(blobUrl);
         document.body.removeChild(a);
       } catch (error) {
-        // Fallback: se houver bloqueio de CORS na mídia, abre o link direto
+        // Fallback se a API externa bloquear download por CORS
         window.open(currentVideoUrl, '_blank');
       } finally {
         btnDownload.disabled = false;
