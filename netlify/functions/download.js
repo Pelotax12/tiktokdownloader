@@ -50,7 +50,6 @@ exports.handler = async function (event, context) {
     // 2. TWITTER / X
     // ----------------------------------------------------
     if (cleanUrl.includes("twitter.com") || cleanUrl.includes("x.com")) {
-      // Extrai o ID do tweet
       const tweetIdMatch = cleanUrl.match(/status\/(\d+)/);
       if (tweetIdMatch) {
         const tweetId = tweetIdMatch[1];
@@ -77,106 +76,115 @@ exports.handler = async function (event, context) {
     }
 
     // ----------------------------------------------------
-    // 3. YOUTUBE (Shorts / Vídeos)
+    // 3. YOUTUBE (Shorts & Vídeos)
     // ----------------------------------------------------
     if (cleanUrl.includes("youtube.com") || cleanUrl.includes("youtu.be")) {
-      // Converte shorts URL para watch padrão se necessário
-      const standardUrl = cleanUrl.replace("/shorts/", "/watch?v=");
+      const videoId = extractYouTubeID(cleanUrl);
       
-      const res = await fetch(`https://api.invidious.io/api/v1/videos/${extractYouTubeID(standardUrl)}`);
-      
-      if (res.ok) {
-        const data = await res.json();
-        const videoStreams = data.formatStreams || [];
-        const audioStreams = data.adaptiveFormats?.filter(f => f.type?.includes("audio")) || [];
-
-        const bestVideo = videoStreams[0]?.url || (data.adaptiveFormats && data.adaptiveFormats[0]?.url);
-        const bestAudio = audioStreams[0]?.url || bestVideo;
-
-        if (bestVideo) {
-          return {
-            statusCode: 200,
-            headers,
-            body: JSON.stringify({
-              success: true,
-              platform: "YouTube",
-              title: data.title || "youtube_video",
-              cover: data.videoThumbnails?.[0]?.url || `https://i.ytimg.com/vi/${extractYouTubeID(standardUrl)}/hqdefault.jpg`,
-              videoUrl: bestVideo,
-              audioUrl: bestAudio,
-              author: data.author || "YouTube Creator"
-            })
-          };
-        }
+      if (!videoId) {
+        return {
+          statusCode: 400,
+          headers,
+          body: JSON.stringify({ error: "Link do YouTube inválido ou ID não encontrado." })
+        };
       }
+
+      // Endpoint dedicado para stream direto de YouTube
+      const ytApiUrl = `https://ytstream-download-y2mate.koyeb.app/api/json?id=${videoId}`;
+      
+      try {
+        const res = await fetch(ytApiUrl, {
+          headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" }
+        });
+        
+        const text = await res.text();
+        // Verifica se a resposta é um JSON válido antes de parsear
+        if (text.startsWith("{")) {
+          const data = JSON.parse(text);
+          if (data && (data.video || data.url || data.link)) {
+            const videoLink = data.video || data.url || data.link;
+            const audioLink = data.audio || videoLink;
+            return {
+              statusCode: 200,
+              headers,
+              body: JSON.stringify({
+                success: true,
+                platform: "YouTube",
+                title: data.title || "youtube_video",
+                cover: `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
+                videoUrl: videoLink,
+                audioUrl: audioLink,
+                author: data.author || "YouTube Creator"
+              })
+            };
+          }
+        }
+      } catch (e) {
+        console.warn("Fallback YouTube primário falhou, tentando secundário...");
+      }
+
+      // Fallback secundário direto para YouTube
+      const fallbackUrl = `https://api.vevioz.com/api/button/mp4/${videoId}`;
+      return {
+        statusCode: 200,
+        headers,
+        body: JSON.stringify({
+          success: true,
+          platform: "YouTube",
+          title: "YouTube Video",
+          cover: `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
+          videoUrl: fallbackUrl,
+          audioUrl: `https://api.vevioz.com/api/button/mp3/${videoId}`,
+          author: "YouTube"
+        })
+      };
     }
 
     // ----------------------------------------------------
-    // 4. INSTAGRAM / MULTIPLATAFORMA (Fallback Cobalt v10)
+    // 4. INSTAGRAM (Reels / Posts)
     // ----------------------------------------------------
-    const cobaltInstances = [
-      "https://cobalt-api.kwiatekm.tokyo",
-      "https://api.cobalt.tools"
-    ];
-
-    for (const instance of cobaltInstances) {
-      try {
-        const cobaltRes = await fetch(`${instance}/`, {
-          method: "POST",
-          headers: {
-            "Accept": "application/json",
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            url: cleanUrl,
-            videoQuality: "720",
-            audioFormat: "mp3",
-            downloadMode: "auto"
-          })
-        });
-
-        const cobaltData = await cobaltRes.json();
-
-        if (cobaltData.url || cobaltData.status === "tunnel" || cobaltData.status === "redirect") {
-          const streamUrl = cobaltData.url;
+    if (cleanUrl.includes("instagram.com")) {
+      const res = await fetch(`https://api.vkrdown.com/api/insta?url=${encodeURIComponent(cleanUrl)}`);
+      const text = await res.text();
+      
+      if (text.startsWith("{")) {
+        const data = JSON.parse(text);
+        if (data.status === "success" && data.data?.[0]) {
           return {
             statusCode: 200,
             headers,
             body: JSON.stringify({
               success: true,
-              platform: "Mídia Online",
-              title: cobaltData.filename || "midia_download",
-              cover: "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=150&h=150&fit=crop",
-              videoUrl: streamUrl,
-              audioUrl: streamUrl,
-              author: "Criador"
+              platform: "Instagram",
+              title: "Instagram Reel",
+              cover: data.data[0].thumbnail,
+              videoUrl: data.data[0].url,
+              audioUrl: data.data[0].url,
+              author: "Instagram"
             })
           };
         }
-      } catch (e) {
-        // Tenta a próxima instância se houver falha de rede
-        continue;
       }
     }
 
     return {
       statusCode: 422,
       headers,
-      body: JSON.stringify({ error: "Não foi possível extrair a mídia. Verifique se o link é público." })
+      body: JSON.stringify({ error: "Plataforma não suportada ou vídeo privado/indisponível." })
     };
 
   } catch (error) {
     return {
       statusCode: 500,
       headers,
-      body: JSON.stringify({ error: "Erro interno ao processar o vídeo: " + error.message })
+      body: JSON.stringify({ error: "Erro ao processar requisição: " + error.message })
     };
   }
 };
 
-// Função auxiliar para extrair o ID do YouTube
+// Extrator seguro do ID do YouTube (compatível com shorts, links encurtados e parâmetros extras como &pp=ug)
 function extractYouTubeID(url) {
-  const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=|shorts\/)([^#\&\?]*).*/;
+  const regExp = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/|youtube\.com\/shorts\/)([^"&?\/\s]{11})/;
   const match = url.match(regExp);
-  return (match && match[2].length === 11) ? match[2] : "";
+  return match ? match[1] : null;
 }
