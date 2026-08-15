@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TikTok Downloader - Netlify</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-900 text-white min-h-screen flex items-center justify-center p-4">
+
+  <div class="max-w-md w-full bg-slate-800 rounded-2xl p-6 shadow-2xl border border-slate-700">
+    <h1 class="text-2xl font-bold text-center mb-2">TikTok Downloader</h1>
+    <p class="text-sm text-slate-400 text-center mb-6">Baixe vídeos sem marca d'água</p>
+
+    <div class="space-y-4">
+      <input 
+        type="url" 
+        id="tiktokUrl" 
+        placeholder="Cole o link do TikTok aqui..." 
+        class="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-xl focus:outline-none focus:border-indigo-500 text-sm text-white"
+      />
+
+      <button 
+        id="btnSearch" 
+        onclick="fetchVideo()" 
+        class="w-full py-3 bg-indigo-600 hover:bg-indigo-500 font-semibold rounded-xl transition duration-200"
+      >
+        Buscar Vídeo
+      </button>
+
+      <div id="status" class="text-center text-sm hidden"></div>
+
+      <!-- Card com o resultado -->
+      <div id="resultCard" class="hidden mt-6 pt-4 border-t border-slate-700 space-y-4">
+        <div class="flex items-center space-x-3">
+          <img id="videoThumb" class="w-16 h-16 rounded-lg object-cover bg-slate-700" src="" alt="Thumbnail" />
+          <div class="overflow-hidden">
+            <p id="videoAuthor" class="text-xs text-indigo-400 font-semibold"></p>
+            <p id="videoTitle" class="text-sm truncate text-slate-200"></p>
+          </div>
+        </div>
+
+        <a 
+          id="btnDownload" 
+          href="#" 
+          target="_blank" 
+          rel="noopener noreferrer"
+          class="block text-center w-full py-3 bg-emerald-600 hover:bg-emerald-500 font-semibold rounded-xl transition duration-200"
+        >
+          ⬇ Baixar Vídeo Sem Marca
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    async function fetchVideo() {
+      const urlInput = document.getElementById('tiktokUrl').value.trim();
+      const status = document.getElementById('status');
+      const resultCard = document.getElementById('resultCard');
+      const btnSearch = document.getElementById('btnSearch');
+
+      if (!urlInput) {
+        alert('Por favor, insira o link do TikTok.');
+        return;
+      }
+
+      status.className = 'text-center text-sm text-yellow-400 block';
+      status.innerText = 'Buscando vídeo...';
+      resultCard.classList.add('hidden');
+      btnSearch.disabled = true;
+
+      try {
+        // Graças ao netlify.toml, você pode chamar diretamente /api/download
+        const response = await fetch(`/api/download?url=${encodeURIComponent(urlInput)}`);
+        const data = await response.json();
+
+        if (response.ok && data.success) {
+          status.classList.add('hidden');
+          
+          document.getElementById('videoThumb').src = data.cover;
+          document.getElementById('videoAuthor').innerText = `@${data.author}`;
+          document.getElementById('videoTitle').innerText = data.title;
+          
+          const downloadBtn = document.getElementById('btnDownload');
+          downloadBtn.href = data.videoUrl;
+          
+          resultCard.classList.remove('hidden');
+        } else {
+          status.className = 'text-center text-sm text-rose-400 block';
+          status.innerText = data.error || 'Erro ao processar o vídeo.';
+        }
+      } catch (err) {
+        status.className = 'text-center text-sm text-rose-400 block';
+        status.innerText = 'Erro de conexão com a função Netlify.';
+      } finally {
+        btnSearch.disabled = false;
+      }
+    }
+  </script>
+</body>
+</html>

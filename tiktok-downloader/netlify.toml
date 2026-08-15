@@ -1,0 +1,9 @@
+[build]
+  publish = "public"
+  functions = "netlify/functions"
+
+# Redirecionamento amigável opcional (permite chamar /api/download em vez da URL longa)
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/:splat"
+  status = 200
