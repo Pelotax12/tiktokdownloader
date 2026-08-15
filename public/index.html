@@ -12,21 +12,21 @@
     <h1 class="text-2xl font-bold text-center mb-1 bg-gradient-to-r from-pink-500 via-purple-500 to-indigo-500 bg-clip-text text-transparent">
       Universal Downloader
     </h1>
-    <p class="text-xs text-slate-400 text-center mb-4">Baixe vídeos em MP4 ou extraia áudios em MP3</p>
+    <p class="text-xs text-slate-400 text-center mb-4">TikTok, YouTube, Twitter/X e Instagram</p>
 
     <!-- Badges de plataformas -->
     <div class="flex justify-center space-x-2 mb-6">
       <span class="text-[10px] bg-slate-700/80 px-2 py-0.5 rounded-full text-slate-300">TikTok</span>
-      <span class="text-[10px] bg-pink-900/40 text-pink-300 border border-pink-700/50 px-2 py-0.5 rounded-full">Instagram</span>
-      <span class="text-[10px] bg-blue-900/40 text-blue-300 border border-blue-700/50 px-2 py-0.5 rounded-full">Twitter / X</span>
       <span class="text-[10px] bg-red-900/40 text-red-300 border border-red-700/50 px-2 py-0.5 rounded-full">YouTube</span>
+      <span class="text-[10px] bg-blue-900/40 text-blue-300 border border-blue-700/50 px-2 py-0.5 rounded-full">Twitter / X</span>
+      <span class="text-[10px] bg-pink-900/40 text-pink-300 border border-pink-700/50 px-2 py-0.5 rounded-full">Instagram</span>
     </div>
 
     <div class="space-y-4">
       <input 
         type="url" 
         id="mediaUrlInput" 
-        placeholder="Cole o link do vídeo aqui..." 
+        placeholder="Cole o link aqui (YouTube, X, TikTok...)" 
         class="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-xl focus:outline-none focus:border-indigo-500 text-sm text-white"
       />
 
@@ -40,7 +40,7 @@
 
       <div id="status" class="text-center text-sm hidden"></div>
 
-      <!-- Card com os resultados e opções de download -->
+      <!-- Card de Resultado -->
       <div id="resultCard" class="hidden mt-6 pt-4 border-t border-slate-700 space-y-4">
         <div class="flex items-center space-x-3">
           <img id="mediaThumb" class="w-16 h-16 rounded-lg object-cover bg-slate-700 flex-shrink-0" src="" alt="Thumbnail" />
@@ -53,7 +53,6 @@
           </div>
         </div>
 
-        <!-- Botões de escolha do formato -->
         <div class="grid grid-cols-2 gap-3 pt-2">
           <button 
             id="btnDownloadVideo" 
@@ -92,7 +91,7 @@
       }
 
       status.className = 'text-center text-sm text-yellow-400 block';
-      status.innerText = 'Processando link...';
+      status.innerText = 'Processando vídeo da plataforma...';
       resultCard.classList.add('hidden');
       btnSearch.disabled = true;
 
@@ -115,11 +114,11 @@
           resultCard.classList.remove('hidden');
         } else {
           status.className = 'text-center text-sm text-rose-400 block';
-          status.innerText = data.error || 'Não foi possível baixar este conteúdo.';
+          status.innerText = data.error || 'Não foi possível obter a mídia deste link.';
         }
       } catch (err) {
         status.className = 'text-center text-sm text-rose-400 block';
-        status.innerText = 'Erro de comunicação com o servidor.';
+        status.innerText = 'Erro ao se conectar ao servidor.';
       } finally {
         btnSearch.disabled = false;
       }
@@ -135,18 +134,13 @@
       if (!targetUrl) return;
 
       targetBtn.disabled = true;
-      targetBtn.innerHTML = `
-        <svg class="animate-spin h-4 w-4 text-white inline-block mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
-        </svg>
-        <span>Baixando...</span>
-      `;
+      targetBtn.innerHTML = `<span>Baixando...</span>`;
 
       try {
         const response = await fetch(targetUrl);
-        const blob = await response.blob();
+        if (!response.ok) throw new Error("CORS or stream error");
         
+        const blob = await response.blob();
         const blobUrl = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.style.display = 'none';
@@ -159,8 +153,14 @@
         window.URL.revokeObjectURL(blobUrl);
         document.body.removeChild(a);
       } catch (error) {
-        // Fallback direto caso haja restrição de CORS na mídia
-        window.open(targetUrl, '_blank');
+        // Fallback: se o navegador bloquear o blob por CORS, faz o download direto via link
+        const a = document.createElement('a');
+        a.href = targetUrl;
+        a.target = '_blank';
+        a.download = `${currentTitle}.${extension}`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
       } finally {
         targetBtn.disabled = false;
         targetBtn.innerHTML = originalText;
