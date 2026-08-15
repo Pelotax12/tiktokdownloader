@@ -37,6 +37,7 @@ exports.handler = async function (event, context) {
             title: data.data.title || "tiktok_video",
             cover: data.data.cover,
             videoUrl: data.data.play,
+            audioUrl: data.data.music, // Link do áudio/música original em MP3
             author: data.data.author?.nickname || "TikTok User"
           })
         };
@@ -45,7 +46,6 @@ exports.handler = async function (event, context) {
 
     // 2. INSTAGRAM (Reels / Posts)
     else if (cleanUrl.includes("instagram.com")) {
-      // Usando endpoint público do snapinsta/igram api bridge
       const res = await fetch(`https://api.vkrdown.com/api/insta?url=${encodeURIComponent(cleanUrl)}`);
       const data = await res.json();
 
@@ -59,6 +59,7 @@ exports.handler = async function (event, context) {
             title: "Instagram Reel",
             cover: data.data[0].thumbnail,
             videoUrl: data.data[0].url,
+            audioUrl: data.data[0].url, // Instagram une áudio/vídeo no mesmo container
             author: "Instagram"
           })
         };
@@ -80,13 +81,14 @@ exports.handler = async function (event, context) {
             title: data.description || "Twitter Video",
             cover: data.thumbnail,
             videoUrl: data.url,
+            audioUrl: data.url,
             author: data.uploader || "Twitter User"
           })
         };
       }
     }
 
-    // 4. MULTIPLATAFORMA / YOUTUBE / OUTROS (Fallback usando Cobalt API pública)
+    // 4. MULTIPLATAFORMA / YOUTUBE (Cobalt API)
     const cobaltRes = await fetch("https://api.cobalt.tools/api/json", {
       method: "POST",
       headers: {
@@ -99,7 +101,8 @@ exports.handler = async function (event, context) {
         vCodec: "h264",
         vQuality: "720",
         aFormat: "mp3",
-        isNoTTWatermark: true
+        isNoTTWatermark: true,
+        isAudioOnly: false
       })
     });
 
@@ -111,10 +114,11 @@ exports.handler = async function (event, context) {
         headers,
         body: JSON.stringify({
           success: true,
-          platform: "Vídeo",
-          title: "video_download",
+          platform: "Mídia",
+          title: "audio_video_download",
           cover: "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=150&h=150&fit=crop",
           videoUrl: cobaltData.url,
+          audioUrl: cobaltData.url,
           author: "Universal Downloader"
         })
       };
@@ -123,14 +127,14 @@ exports.handler = async function (event, context) {
     return {
       statusCode: 422,
       headers,
-      body: JSON.stringify({ error: "Plataforma não suportada ou link indisponível." })
+      body: JSON.stringify({ error: "Não foi possível extrair a mídia do link informado." })
     };
 
   } catch (error) {
     return {
       statusCode: 500,
       headers,
-      body: JSON.stringify({ error: "Erro ao processar a mídia da plataforma." })
+      body: JSON.stringify({ error: "Erro ao processar requisição no servidor." })
     };
   }
 };
